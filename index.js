@@ -115,10 +115,13 @@ function buildServiceCard(key, url, uptimeData) {
   container.querySelector('a').textContent = url;
   container.querySelector('span:last-child').textContent = uptimeData.upTime + ' uptime (30d)';
 
-  // Build status grid
+  // Build status grid with staggered animation
   const grid = container.querySelector('.status-grid');
   for (let i = MAX_DAYS - 1; i >= 0; i--) {
     const square = buildStatusSquare(key, i, uptimeData[i]);
+    // Staggered animation delay (oldest to newest)
+    const animIndex = MAX_DAYS - 1 - i;
+    square.style.animationDelay = (animIndex * 0.015) + 's';
     grid.appendChild(square);
   }
 
