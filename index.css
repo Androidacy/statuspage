@@ -7,9 +7,22 @@
   --status-nodata: #dee2e6;
 }
 
+/* Body - remove default margin and ensure full-height dark background */
+body {
+  min-height: 100vh;
+  margin: 0;
+  padding: 0;
+}
+
 /* Container - wider for better space usage */
 .container {
   max-width: 1100px;
+}
+
+/* Main container - minimal top padding to reduce wasted space */
+main.container {
+  padding-top: 1rem;
+  padding-bottom: 1.5rem;
 }
 
 /* Card entrance animation */
@@ -129,10 +142,11 @@
   }
 }
 
-/* Service separator */
+/* Service separator - improved spacing between items */
 .status-service + .status-service {
-  padding-top: 1.25rem;
-  border-top: 1px solid #e9ecef;
+  padding-top: 1.5rem;
+  margin-top: 1.5rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 /* Tooltip */
@@ -218,9 +232,18 @@
   50% { opacity: 0.6; }
 }
 
-/* Header animation */
+/* Header - improved alignment and spacing */
 header {
   animation: headerFadeIn 0.3s ease-out;
+  text-align: center;
+}
+
+header h1 {
+  line-height: 1;
+}
+
+header .badge {
+  vertical-align: middle;
 }
 
 @keyframes headerFadeIn {
@@ -255,7 +278,8 @@ header {
   }
 
   .status-service + .status-service {
-    padding-top: 1rem;
+    padding-top: 1.25rem;
+    margin-top: 1.25rem;
   }
 }
 
@@ -267,12 +291,12 @@ header {
   }
 
   main.container {
-    padding-top: 0.75rem !important;
-    padding-bottom: 0.75rem !important;
+    padding-top: 0.5rem;
+    padding-bottom: 0.5rem;
   }
 
   .card-body {
-    padding: 0.875rem !important;
+    padding: 1rem !important;
   }
 
   .status-grid {
@@ -285,11 +309,13 @@ header {
   }
 
   header {
-    margin-bottom: 1rem !important;
+    margin-bottom: 1.25rem !important;
   }
 
-  .status-service {
-    margin-bottom: 1rem !important;
+  /* Better spacing between service items on mobile */
+  .status-service + .status-service {
+    padding-top: 1.25rem;
+    margin-top: 1.25rem;
   }
 
   .footer-credit {
