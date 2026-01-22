@@ -7,9 +7,25 @@
   --status-nodata: #dee2e6;
 }
 
-/* Container max-width override */
+/* Container - wider for better space usage */
 .container {
-  max-width: 900px;
+  max-width: 1100px;
+}
+
+/* Card entrance animation */
+.card {
+  animation: cardFadeIn 0.4s ease-out;
+}
+
+@keyframes cardFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 /* Status Grid - 30 day visualization */
@@ -20,18 +36,31 @@
 }
 
 .status-square {
-  height: 32px;
+  height: 40px;
   min-width: 0;
   border-radius: 4px;
   cursor: pointer;
   transition: transform 0.15s ease, box-shadow 0.15s ease;
+  animation: squareFadeIn 0.3s ease-out backwards;
 }
 
 .status-square:hover,
 .status-square:focus {
-  transform: scaleY(1.15);
+  transform: scaleY(1.12);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
   outline: none;
+}
+
+/* Staggered animation for status squares via JS */
+@keyframes squareFadeIn {
+  from {
+    opacity: 0;
+    transform: scaleY(0.5);
+  }
+  to {
+    opacity: 1;
+    transform: scaleY(1);
+  }
 }
 
 /* Status Colors */
@@ -55,6 +84,7 @@
 .status-badge {
   font-size: 0.75rem;
   padding: 0.35em 0.65em;
+  transition: transform 0.2s ease;
 }
 
 .status-badge.success {
@@ -77,9 +107,31 @@
   color: #6c757d;
 }
 
+/* Service entrance animation */
+.status-service {
+  animation: serviceFadeIn 0.35s ease-out backwards;
+}
+
+.status-service:nth-child(1) { animation-delay: 0.05s; }
+.status-service:nth-child(2) { animation-delay: 0.1s; }
+.status-service:nth-child(3) { animation-delay: 0.15s; }
+.status-service:nth-child(4) { animation-delay: 0.2s; }
+.status-service:nth-child(5) { animation-delay: 0.25s; }
+
+@keyframes serviceFadeIn {
+  from {
+    opacity: 0;
+    transform: translateX(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
 /* Service separator */
 .status-service + .status-service {
-  padding-top: 1.5rem;
+  padding-top: 1.25rem;
   border-top: 1px solid #e9ecef;
 }
 
@@ -94,11 +146,13 @@
   width: 260px;
   opacity: 0;
   pointer-events: none;
-  transition: opacity 0.2s ease;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+  transform: translateY(4px);
 }
 
 .status-tooltip.show {
   opacity: 1;
+  transform: translateY(0);
 }
 
 .status-tooltip .tooltip-arrow {
@@ -143,38 +197,131 @@
   border-color: #e9ecef;
 }
 
-/* Responsive adjustments */
+/* Footer - smaller credit */
+.footer-credit {
+  font-size: 0.7rem;
+  opacity: 0.7;
+  transition: opacity 0.2s ease;
+}
+
+.footer-credit:hover {
+  opacity: 1;
+}
+
+/* Loading spinner animation enhancement */
+#loading {
+  animation: loadingPulse 1.5s ease-in-out infinite;
+}
+
+@keyframes loadingPulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
+/* Header animation */
+header {
+  animation: headerFadeIn 0.3s ease-out;
+}
+
+@keyframes headerFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Responsive adjustments - Tablet */
 @media (max-width: 767.98px) {
+  .container {
+    max-width: 100%;
+  }
+
   .status-grid {
-    gap: 2px;
+    gap: 3px;
   }
 
   .status-square {
-    height: 24px;
-    border-radius: 2px;
+    height: 32px;
+    border-radius: 3px;
   }
 
   .status-tooltip {
     width: 220px;
     padding: 0.75rem;
   }
+
+  .status-service + .status-service {
+    padding-top: 1rem;
+  }
 }
 
+/* Responsive adjustments - Mobile */
 @media (max-width: 575.98px) {
   .container {
-    padding-left: 0.75rem;
-    padding-right: 0.75rem;
+    padding-left: 0.5rem;
+    padding-right: 0.5rem;
+  }
+
+  main.container {
+    padding-top: 0.75rem !important;
+    padding-bottom: 0.75rem !important;
   }
 
   .card-body {
-    padding: 1rem !important;
+    padding: 0.875rem !important;
+  }
+
+  .status-grid {
+    gap: 2px;
+  }
+
+  .status-square {
+    height: 28px;
+    border-radius: 2px;
+  }
+
+  header {
+    margin-bottom: 1rem !important;
+  }
+
+  .status-service {
+    margin-bottom: 1rem !important;
+  }
+
+  .footer-credit {
+    font-size: 0.65rem;
+  }
+}
+
+/* Extra small screens */
+@media (max-width: 400px) {
+  .status-square {
+    height: 24px;
   }
 
   .status-grid {
     gap: 1px;
   }
+}
 
-  .status-square {
-    height: 20px;
+/* Prefers reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  .card,
+  .status-service,
+  .status-square,
+  header,
+  #loading {
+    animation: none;
+  }
+
+  .status-square,
+  .status-tooltip,
+  .status-badge,
+  .footer-credit {
+    transition: none;
   }
 }
