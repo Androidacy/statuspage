@@ -80,15 +80,20 @@
 
   <!-- AdSense - lazy loaded -->
   <script>
-    if ('requestIdleCallback' in window) {
-      requestIdleCallback(function() {
+    (function() {
+      var load = function() {
         var s = document.createElement('script');
         s.src = 'https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-3244211138841136';
         s.async = true;
         s.crossOrigin = 'anonymous';
         document.body.appendChild(s);
-      });
-    }
+      };
+      if ('requestIdleCallback' in window) {
+        requestIdleCallback(load);
+      } else {
+        setTimeout(load, 1);
+      }
+    })();
   </script>
 
   <!-- Bootstrap JS Bundle -->

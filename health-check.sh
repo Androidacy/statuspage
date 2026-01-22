@@ -7,11 +7,19 @@ if [[ $origin == *statsig-io/statuspage* ]]; then
   commit=false
 fi
 
+# Create secure temp directory
+TMPDIR=$(mktemp -d)
+trap 'rm -rf "$TMPDIR"' EXIT
+
 # Parse config
 declare -a KEYS
 declare -a URLS
 
-while IFS='=' read -r key url; do
+while IFS='=' read -r key url || [[ -n "$key" ]]; do
+  # Skip empty lines and comments
+  [[ -z "$key" || "$key" =~ ^[[:space:]]*# ]] && continue
+  # Sanitize key: only allow alphanumeric and underscore
+  key=$(echo "$key" | tr -cd '[:alnum:]_')
   [[ -z "$key" || -z "$url" ]] && continue
   KEYS+=("$key")
   URLS+=("$url")
@@ -55,7 +63,7 @@ for i in "${!KEYS[@]}"; do
 
   (
     result=$(check_url "$key" "$url")
-    echo "$result" > "/tmp/health_${key}.tmp"
+    echo "$result" > "$TMPDIR/${key}.tmp"
   ) &
   pids+=($!)
 done
@@ -73,8 +81,7 @@ all_results=()
 for i in "${!KEYS[@]}"; do
   key="${KEYS[$i]}"
   url="${URLS[$i]}"
-  result=$(cat "/tmp/health_${key}.tmp" 2>/dev/null || echo "failed")
-  rm -f "/tmp/health_${key}.tmp"
+  result=$(cat "$TMPDIR/${key}.tmp" 2>/dev/null || echo "failed")
 
   echo "  $key: $result"
   all_results+=("$key|$url|$result")
@@ -119,18 +126,13 @@ if [[ ${#failed_services[@]} -gt 0 && -n "$NOTIFICATION_WEBHOOK" ]]; then
   failed_list=$(printf ", %s" "${failed_services[@]}")
   failed_list=${failed_list:2}
 
-  payload=$(cat <<EOF
-{
-  "content": "**Service Alert**: The following services are down: $failed_list",
-  "embeds": [{
-    "title": "Health Check Failed",
-    "description": "Services experiencing issues: $failed_list",
-    "color": 15158332,
-    "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-  }]
-}
-EOF
-)
+  # Escape for JSON
+  json_escape() {
+    printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g; s/\n/\\n/g'
+  }
+  escaped_list=$(json_escape "$failed_list")
+
+  payload="{\"content\":\"**Service Alert**: The following services are down: $escaped_list\",\"embeds\":[{\"title\":\"Health Check Failed\",\"description\":\"Services experiencing issues: $escaped_list\",\"color\":15158332,\"timestamp\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"}]}"
   curl -s -X POST -H "Content-Type: application/json" -d "$payload" "$NOTIFICATION_WEBHOOK" >/dev/null 2>&1 || true
 fi
 

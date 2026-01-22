@@ -24,7 +24,10 @@ async function loadAllReports() {
 
   // Load all services in parallel
   const promises = lines.map(line => {
-    const [key, url] = line.split('=').map(s => s.trim());
+    const eqIndex = line.indexOf('=');
+    if (eqIndex === -1) return null;
+    const key = line.substring(0, eqIndex).trim();
+    const url = line.substring(eqIndex + 1).trim();
     if (!key || !url) return null;
     return loadServiceReport(key, url);
   }).filter(Boolean);
@@ -141,10 +144,17 @@ function buildStatusSquare(key, daysAgo, uptimeVal) {
   square.addEventListener('mouseleave', hideTooltip);
   square.addEventListener('blur', hideTooltip);
 
-  // Touch support
+  // Touch support - show on tap, hide on second tap or elsewhere
+  let touchActive = false;
   square.addEventListener('touchstart', (e) => {
-    e.preventDefault();
-    showTip();
+    if (touchActive) {
+      hideTooltip();
+      touchActive = false;
+    } else {
+      e.preventDefault();
+      showTip();
+      touchActive = true;
+    }
   }, { passive: false });
 
   return square;
@@ -240,3 +250,10 @@ function showError() {
     loading.innerHTML = '<p class="text-danger mb-0">Failed to load status data. Please refresh.</p>';
   }
 }
+
+// Dismiss tooltip when clicking/tapping outside
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('.status-square') && !e.target.closest('.status-tooltip')) {
+    hideTooltip();
+  }
+});
