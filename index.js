@@ -1,252 +1,242 @@
-const maxDays = 30;
+const MAX_DAYS = 30;
 
-async function genReportLog(container, key, url) {
-  const response = await fetch("logs/" + key + "_report.log");
-  let statusLines = "";
-  if (response.ok) {
-    statusLines = await response.text();
+// Initialize on DOM ready
+document.addEventListener('DOMContentLoaded', init);
+
+async function init() {
+  try {
+    await loadAllReports();
+  } catch (e) {
+    console.error('Failed to load status data:', e);
+    showError();
   }
-
-  const normalized = normalizeData(statusLines);
-  const statusStream = constructStatusStream(key, url, normalized);
-  container.appendChild(statusStream);
 }
 
-function constructStatusStream(key, url, uptimeData) {
-  let streamContainer = templatize("statusStreamContainerTemplate");
-  for (var ii = maxDays - 1; ii >= 0; ii--) {
-    let line = constructStatusLine(key, ii, uptimeData[ii]);
-    streamContainer.appendChild(line);
-  }
+async function loadAllReports() {
+  const response = await fetch('urls.cfg');
+  if (!response.ok) throw new Error('Failed to load config');
 
-  const lastSet = uptimeData[0];
-  const color = getColor(lastSet);
+  const configText = await response.text();
+  const lines = configText.split('\n').filter(line => line.trim() && line.includes('='));
 
-  const container = templatize("statusContainerTemplate", {
-    title: key,
-    url: url,
-    color: color,
-    status: getStatusText(color),
-    upTime: uptimeData.upTime,
+  const container = document.getElementById('reports');
+  const loading = document.getElementById('loading');
+
+  // Load all services in parallel
+  const promises = lines.map(line => {
+    const [key, url] = line.split('=').map(s => s.trim());
+    if (!key || !url) return null;
+    return loadServiceReport(key, url);
+  }).filter(Boolean);
+
+  const results = await Promise.all(promises);
+
+  // Append all results
+  results.forEach(el => {
+    if (el) container.appendChild(el);
   });
 
-  container.appendChild(streamContainer);
+  // Hide loading
+  if (loading) loading.remove();
+}
+
+async function loadServiceReport(key, url) {
+  const response = await fetch('logs/' + key + '_report.log');
+  let logData = '';
+  if (response.ok) {
+    logData = await response.text();
+  }
+
+  const uptimeData = parseLogData(logData);
+  return buildServiceCard(key, url, uptimeData);
+}
+
+function parseLogData(logText) {
+  const rows = logText.split('\n').filter(Boolean);
+  const dateMap = {};
+  let successCount = 0;
+  let totalCount = 0;
+
+  rows.forEach(row => {
+    const [dateTimeStr, resultStr] = row.split(',', 2);
+    if (!dateTimeStr || !resultStr) return;
+
+    // Parse date - handle various formats
+    const dateTime = new Date(Date.parse(dateTimeStr.replace(/-/g, '/') + ' GMT'));
+    if (isNaN(dateTime)) return;
+
+    const dateKey = dateTime.toDateString();
+
+    if (!dateMap[dateKey]) {
+      dateMap[dateKey] = [];
+    }
+
+    const isSuccess = resultStr.trim() === 'success';
+    dateMap[dateKey].push(isSuccess ? 1 : 0);
+
+    if (isSuccess) successCount++;
+    totalCount++;
+  });
+
+  // Convert to relative days
+  const now = Date.now();
+  const relativeData = {};
+
+  Object.entries(dateMap).forEach(([dateStr, values]) => {
+    const daysDiff = Math.floor((now - new Date(dateStr).getTime()) / (24 * 3600 * 1000));
+    if (daysDiff < MAX_DAYS) {
+      relativeData[daysDiff] = values.reduce((a, b) => a + b, 0) / values.length;
+    }
+  });
+
+  relativeData.upTime = totalCount > 0
+    ? ((successCount / totalCount) * 100).toFixed(2) + '%'
+    : '--';
+
+  return relativeData;
+}
+
+function buildServiceCard(key, url, uptimeData) {
+  const template = document.getElementById('statusContainerTemplate');
+  const clone = template.content.cloneNode(true);
+
+  const currentStatus = uptimeData[0];
+  const color = getStatusColor(currentStatus);
+
+  // Fill template
+  const container = clone.querySelector('.status-service');
+  container.querySelector('h2').textContent = formatServiceName(key);
+  container.querySelector('.status-badge').className = 'badge status-badge ' + color;
+  container.querySelector('.status-badge').textContent = getStatusLabel(color);
+  container.querySelector('a').href = url;
+  container.querySelector('a').textContent = url;
+  container.querySelector('span:last-child').textContent = uptimeData.upTime + ' uptime (30d)';
+
+  // Build status grid
+  const grid = container.querySelector('.status-grid');
+  for (let i = MAX_DAYS - 1; i >= 0; i--) {
+    const square = buildStatusSquare(key, i, uptimeData[i]);
+    grid.appendChild(square);
+  }
+
   return container;
 }
 
-function constructStatusLine(key, relDay, upTimeArray) {
-  let date = new Date();
-  date.setDate(date.getDate() - relDay);
+function buildStatusSquare(key, daysAgo, uptimeVal) {
+  const template = document.getElementById('statusSquareTemplate');
+  const clone = template.content.cloneNode(true);
+  const square = clone.querySelector('.status-square');
 
-  return constructStatusSquare(key, date, upTimeArray);
-}
+  const color = getStatusColor(uptimeVal);
+  square.className = 'status-square ' + color;
+  square.dataset.status = color;
 
-function getColor(uptimeVal) {
-  return uptimeVal == null
-    ? "nodata"
-    : uptimeVal == 1
-    ? "success"
-    : uptimeVal < 0.3
-    ? "failure"
-    : "partial";
-}
+  const date = new Date();
+  date.setDate(date.getDate() - daysAgo);
 
-function constructStatusSquare(key, date, uptimeVal) {
-  const color = getColor(uptimeVal);
-  let square = templatize("statusSquareTemplate", {
-    color: color,
-    tooltip: getTooltip(key, date, color),
-  });
+  // Event handlers
+  const showTip = () => showTooltip(square, date, color);
+  square.addEventListener('mouseenter', showTip);
+  square.addEventListener('focus', showTip);
+  square.addEventListener('mouseleave', hideTooltip);
+  square.addEventListener('blur', hideTooltip);
 
-  const show = () => {
-    showTooltip(square, key, date, color);
-  };
-  square.addEventListener("mouseover", show);
-  square.addEventListener("mousedown", show);
-  square.addEventListener("mouseout", hideTooltip);
+  // Touch support
+  square.addEventListener('touchstart', (e) => {
+    e.preventDefault();
+    showTip();
+  }, { passive: false });
+
   return square;
 }
 
-let cloneId = 0;
-function templatize(templateId, parameters) {
-  let clone = document.getElementById(templateId).cloneNode(true);
-  clone.id = "template_clone_" + cloneId++;
-  if (!parameters) {
-    return clone;
-  }
-
-  applyTemplateSubstitutions(clone, parameters);
-  return clone;
+function getStatusColor(val) {
+  if (val == null) return 'nodata';
+  if (val >= 1) return 'success';
+  if (val < 0.3) return 'failure';
+  return 'partial';
 }
 
-function applyTemplateSubstitutions(node, parameters) {
-  const attributes = node.getAttributeNames();
-  for (var ii = 0; ii < attributes.length; ii++) {
-    const attr = attributes[ii];
-    const attrVal = node.getAttribute(attr);
-    node.setAttribute(attr, templatizeString(attrVal, parameters));
-  }
+function getStatusLabel(color) {
+  const labels = {
+    success: 'Operational',
+    partial: 'Degraded',
+    failure: 'Outage',
+    nodata: 'No Data'
+  };
+  return labels[color] || 'Unknown';
+}
 
-  if (node.childElementCount == 0) {
-    node.innerText = templatizeString(node.innerText, parameters);
+function getStatusDescription(color) {
+  const descriptions = {
+    success: 'All checks passed on this day.',
+    partial: 'Some checks failed on this day.',
+    failure: 'Most checks failed on this day.',
+    nodata: 'No monitoring data available.'
+  };
+  return descriptions[color] || '';
+}
+
+function formatServiceName(key) {
+  // Convert key like "api" to "API", "vaultwarden" to "Vaultwarden", etc.
+  if (key.toLowerCase() === 'api') return 'API';
+  return key.charAt(0).toUpperCase() + key.slice(1).toLowerCase();
+}
+
+// Tooltip handling
+let tooltipTimer = null;
+
+function showTooltip(element, date, color) {
+  clearTimeout(tooltipTimer);
+
+  const tooltip = document.getElementById('tooltip');
+  tooltip.querySelector('.tooltip-date').textContent = date.toLocaleDateString('en-US', {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric'
+  });
+
+  const statusEl = tooltip.querySelector('.tooltip-status');
+  statusEl.textContent = getStatusLabel(color);
+  statusEl.className = 'tooltip-status ' + color;
+
+  tooltip.querySelector('.tooltip-desc').textContent = getStatusDescription(color);
+
+  // Position tooltip
+  const rect = element.getBoundingClientRect();
+  const tooltipRect = tooltip.getBoundingClientRect();
+
+  let left = rect.left + (rect.width / 2) - (tooltipRect.width / 2);
+  let top = rect.bottom + 8;
+
+  // Keep within viewport
+  left = Math.max(10, Math.min(left, window.innerWidth - tooltipRect.width - 10));
+
+  // If would go below viewport, show above
+  if (top + tooltipRect.height > window.innerHeight - 10) {
+    top = rect.top - tooltipRect.height - 8;
+    tooltip.querySelector('.tooltip-arrow').style.cssText = 'top: auto; bottom: -6px; border-bottom: none; border-top: 6px solid #fff;';
   } else {
-    const children = Array.from(node.children);
-    children.forEach((n) => {
-      applyTemplateSubstitutions(n, parameters);
-    });
-  }
-}
-
-function templatizeString(text, parameters) {
-  if (parameters) {
-    for (const [key, val] of Object.entries(parameters)) {
-      text = text.replaceAll("$" + key, val);
-    }
-  }
-  return text;
-}
-
-function getStatusText(color) {
-  return color == "nodata"
-    ? "No Data Available"
-    : color == "success"
-    ? "Fully Operational"
-    : color == "failure"
-    ? "Major Outage"
-    : color == "partial"
-    ? "Partial Outage"
-    : "Unknown";
-}
-
-function getStatusDescriptiveText(color) {
-  return color == "nodata"
-    ? "No Data Available: Health check was not performed."
-    : color == "success"
-    ? "No downtime recorded on this day."
-    : color == "failure"
-    ? "Major outages recorded on this day."
-    : color == "partial"
-    ? "Partial outages recorded on this day."
-    : "Unknown";
-}
-
-function getTooltip(key, date, quartile, color) {
-  let statusText = getStatusText(color);
-  return `${key} | ${date.toDateString()} : ${quartile} : ${statusText}`;
-}
-
-function create(tag, className) {
-  let element = document.createElement(tag);
-  element.className = className;
-  return element;
-}
-
-function normalizeData(statusLines) {
-  const rows = statusLines.split("\n");
-  const dateNormalized = splitRowsByDate(rows);
-
-  let relativeDateMap = {};
-  const now = Date.now();
-  for (const [key, val] of Object.entries(dateNormalized)) {
-    if (key == "upTime") {
-      continue;
-    }
-
-    const relDays = getRelativeDays(now, new Date(key).getTime());
-    relativeDateMap[relDays] = getDayAverage(val);
+    tooltip.querySelector('.tooltip-arrow').style.cssText = '';
   }
 
-  relativeDateMap.upTime = dateNormalized.upTime;
-  return relativeDateMap;
-}
-
-function getDayAverage(val) {
-  if (!val || val.length == 0) {
-    return null;
-  } else {
-    return val.reduce((a, v) => a + v) / val.length;
-  }
-}
-
-function getRelativeDays(date1, date2) {
-  return Math.floor(Math.abs((date1 - date2) / (24 * 3600 * 1000)));
-}
-
-function splitRowsByDate(rows) {
-  let dateValues = {};
-  let sum = 0,
-    count = 0;
-  for (var ii = 0; ii < rows.length; ii++) {
-    const row = rows[ii];
-    if (!row) {
-      continue;
-    }
-
-    const [dateTimeStr, resultStr] = row.split(",", 2);
-    const dateTime = new Date(Date.parse(dateTimeStr.replace(/-/g, "/") + " GMT"));
-    const dateStr = dateTime.toDateString();
-
-    let resultArray = dateValues[dateStr];
-    if (!resultArray) {
-      resultArray = [];
-      dateValues[dateStr] = resultArray;
-      if (dateValues.length > maxDays) {
-        break;
-      }
-    }
-
-    let result = 0;
-    if (resultStr.trim() == "success") {
-      result = 1;
-    }
-    sum += result;
-    count++;
-
-    resultArray.push(result);
-  }
-
-  const upTime = count ? ((sum / count) * 100).toFixed(2) + "%" : "--%";
-  dateValues.upTime = upTime;
-  return dateValues;
-}
-
-let tooltipTimeout = null;
-function showTooltip(element, key, date, color) {
-  clearTimeout(tooltipTimeout);
-  const toolTipDiv = document.getElementById("tooltip");
-
-  document.getElementById("tooltipDateTime").innerText = date.toDateString();
-  document.getElementById("tooltipDescription").innerText =
-    getStatusDescriptiveText(color);
-
-  const statusDiv = document.getElementById("tooltipStatus");
-  statusDiv.innerText = getStatusText(color);
-  statusDiv.className = color;
-
-  toolTipDiv.style.top = element.offsetTop + element.offsetHeight + 10;
-  toolTipDiv.style.left =
-    element.offsetLeft + element.offsetWidth / 2 - toolTipDiv.offsetWidth / 2;
-  toolTipDiv.style.opacity = "1";
+  tooltip.style.left = left + 'px';
+  tooltip.style.top = top + 'px';
+  tooltip.classList.add('show');
+  tooltip.setAttribute('aria-hidden', 'false');
 }
 
 function hideTooltip() {
-  tooltipTimeout = setTimeout(() => {
-    const toolTipDiv = document.getElementById("tooltip");
-    toolTipDiv.style.opacity = "0";
-  }, 1000);
+  tooltipTimer = setTimeout(() => {
+    const tooltip = document.getElementById('tooltip');
+    tooltip.classList.remove('show');
+    tooltip.setAttribute('aria-hidden', 'true');
+  }, 200);
 }
 
-async function genAllReports() {
-  const response = await fetch("urls.cfg");
-  const configText = await response.text();
-  const configLines = configText.split("\n");
-  for (let ii = 0; ii < configLines.length; ii++) {
-    const configLine = configLines[ii];
-    const [key, url] = configLine.split("=");
-    if (!key || !url) {
-      continue;
-    }
-
-    await genReportLog(document.getElementById("reports"), key, url);
+function showError() {
+  const loading = document.getElementById('loading');
+  if (loading) {
+    loading.innerHTML = '<p class="text-danger mb-0">Failed to load status data. Please refresh.</p>';
   }
 }
