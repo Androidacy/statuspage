@@ -120,6 +120,13 @@ main.container {
   color: #6c757d;
 }
 
+/* Reports container - flexbox for reliable spacing */
+#reports {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
 /* Service entrance animation */
 .status-service {
   animation: serviceFadeIn 0.35s ease-out backwards;
@@ -142,11 +149,10 @@ main.container {
   }
 }
 
-/* Service separator - improved spacing between items */
+/* Service separator - visual divider between items */
 .status-service + .status-service {
   padding-top: 1.5rem;
-  margin-top: 1.5rem;
-  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  border-top: 1px solid rgba(255, 255, 255, 0.15);
 }
 
 /* Tooltip */
@@ -279,7 +285,10 @@ header .badge {
 
   .status-service + .status-service {
     padding-top: 1.25rem;
-    margin-top: 1.25rem;
+  }
+
+  #reports {
+    gap: 1.25rem;
   }
 }
 
@@ -315,7 +324,10 @@ header .badge {
   /* Better spacing between service items on mobile */
   .status-service + .status-service {
     padding-top: 1.25rem;
-    margin-top: 1.25rem;
+  }
+
+  #reports {
+    gap: 1.25rem;
   }
 
   .footer-credit {

@@ -113,7 +113,7 @@ function buildServiceCard(key, url, uptimeData) {
   container.querySelector('.status-badge').textContent = getStatusLabel(color);
   container.querySelector('a').href = url;
   container.querySelector('a').textContent = url;
-  container.querySelector('span:last-child').textContent = uptimeData.upTime + ' uptime (30d)';
+  container.querySelector('.justify-content-between > span').textContent = uptimeData.upTime + ' uptime (30d)';
 
   // Build status grid with staggered animation
   const grid = container.querySelector('.status-grid');
