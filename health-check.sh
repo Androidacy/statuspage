@@ -1,5 +1,4 @@
 #!/bin/bash
-set -e
 
 # Skip commits in original repo to avoid merge conflicts
 commit=true
@@ -28,7 +27,6 @@ check_url() {
   local result="failed"
 
   for attempt in 1 2 3; do
-    # Use timeout, follow redirects, accept common success codes
     local http_code
     http_code=$(curl -s -o /dev/null -w '%{http_code}' \
       --connect-timeout 10 \
@@ -42,7 +40,6 @@ check_url() {
         ;;
     esac
 
-    # Brief pause before retry (only if not last attempt)
     [[ $attempt -lt 3 ]] && sleep 2
   done
 
@@ -50,14 +47,12 @@ check_url() {
 }
 
 # Run all checks in parallel
-declare -A RESULTS
 pids=()
 
 for i in "${!KEYS[@]}"; do
   key="${KEYS[$i]}"
   url="${URLS[$i]}"
 
-  # Run check in background, store result in temp file
   (
     result=$(check_url "$key" "$url")
     echo "$result" > "/tmp/health_${key}.tmp"
@@ -65,26 +60,33 @@ for i in "${!KEYS[@]}"; do
   pids+=($!)
 done
 
-# Wait for all checks to complete
 for pid in "${pids[@]}"; do
   wait "$pid" 2>/dev/null || true
 done
 
-# Collect results and write logs
+# Collect results
 dateTime=$(date -u +'%Y-%m-%d %H:%M')
 changes=false
+failed_services=()
+all_results=()
 
-for key in "${KEYS[@]}"; do
+for i in "${!KEYS[@]}"; do
+  key="${KEYS[$i]}"
+  url="${URLS[$i]}"
   result=$(cat "/tmp/health_${key}.tmp" 2>/dev/null || echo "failed")
   rm -f "/tmp/health_${key}.tmp"
 
   echo "  $key: $result"
+  all_results+=("$key|$url|$result")
+
+  if [[ $result == "failed" ]]; then
+    failed_services+=("$key")
+  fi
 
   if [[ $commit == true ]]; then
     logfile="logs/${key}_report.log"
     echo "$dateTime, $result" >> "$logfile"
 
-    # Keep last 2000 entries
     if [[ $(wc -l < "$logfile") -gt 2000 ]]; then
       tail -2000 "$logfile" > "${logfile}.tmp" && mv "${logfile}.tmp" "$logfile"
     fi
@@ -92,18 +94,63 @@ for key in "${KEYS[@]}"; do
   fi
 done
 
-# Commit changes if any
-if [[ $commit == true && $changes == true ]]; then
-  # Check if there are actual changes to commit
-  if git diff --quiet logs/ 2>/dev/null; then
-    echo "No changes to commit"
-    exit 0
-  fi
-
-  git config --local user.name 'androidacy-user'
-  git config --local user.email 'opensource@androidacy.com'
-  git add logs/
-  git commit -m '[Automated] Update Health Check Logs' --quiet
-  git push --quiet
-  echo "Changes committed and pushed"
+# Write GitHub Actions job summary
+if [[ -n "$GITHUB_STEP_SUMMARY" ]]; then
+  {
+    echo "## Health Check Results"
+    echo ""
+    echo "| Service | URL | Status |"
+    echo "|---------|-----|--------|"
+    for entry in "${all_results[@]}"; do
+      IFS='|' read -r key url result <<< "$entry"
+      if [[ $result == "success" ]]; then
+        echo "| $key | $url | :white_check_mark: Up |"
+      else
+        echo "| $key | $url | :x: **Down** |"
+      fi
+    done
+    echo ""
+    echo "_Checked at $dateTime UTC_"
+  } >> "$GITHUB_STEP_SUMMARY"
 fi
+
+# Send webhook notification if services are down
+if [[ ${#failed_services[@]} -gt 0 && -n "$NOTIFICATION_WEBHOOK" ]]; then
+  failed_list=$(printf ", %s" "${failed_services[@]}")
+  failed_list=${failed_list:2}
+
+  payload=$(cat <<EOF
+{
+  "content": "**Service Alert**: The following services are down: $failed_list",
+  "embeds": [{
+    "title": "Health Check Failed",
+    "description": "Services experiencing issues: $failed_list",
+    "color": 15158332,
+    "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  }]
+}
+EOF
+)
+  curl -s -X POST -H "Content-Type: application/json" -d "$payload" "$NOTIFICATION_WEBHOOK" >/dev/null 2>&1 || true
+fi
+
+# Commit changes
+if [[ $commit == true && $changes == true ]]; then
+  if ! git diff --quiet logs/ 2>/dev/null; then
+    git config --local user.name 'androidacy-user'
+    git config --local user.email 'opensource@androidacy.com'
+    git add logs/
+    git commit -m '[Automated] Update Health Check Logs' --quiet
+    git push --quiet
+    echo "Changes committed and pushed"
+  fi
+fi
+
+# Exit with error if any service is down (triggers GitHub notification)
+if [[ ${#failed_services[@]} -gt 0 ]]; then
+  echo ""
+  echo "ALERT: ${#failed_services[@]} service(s) down: ${failed_services[*]}"
+  exit 1
+fi
+
+echo "All services operational"
