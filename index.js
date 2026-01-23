@@ -203,6 +203,13 @@ function showTooltip(element, date, color) {
   clearTimeout(tooltipTimer);
 
   const tooltip = document.getElementById('tooltip');
+
+  // Remove show class first to retrigger animation when moving between squares
+  const wasShowing = tooltip.classList.contains('show');
+  if (wasShowing) {
+    tooltip.classList.remove('show');
+  }
+
   tooltip.querySelector('.tooltip-date').textContent = date.toLocaleDateString('en-US', {
     weekday: 'short',
     month: 'short',
@@ -235,16 +242,21 @@ function showTooltip(element, date, color) {
 
   tooltip.style.left = left + 'px';
   tooltip.style.top = top + 'px';
+
+  // Force reflow to ensure transition triggers after positioning
+  tooltip.offsetHeight;
+
   tooltip.classList.add('show');
   tooltip.setAttribute('aria-hidden', 'false');
 }
 
 function hideTooltip() {
+  clearTimeout(tooltipTimer);
   tooltipTimer = setTimeout(() => {
     const tooltip = document.getElementById('tooltip');
     tooltip.classList.remove('show');
     tooltip.setAttribute('aria-hidden', 'true');
-  }, 200);
+  }, 100);
 }
 
 function showError() {
