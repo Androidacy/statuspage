@@ -204,11 +204,8 @@ function showTooltip(element, date, color) {
 
   const tooltip = document.getElementById('tooltip');
 
-  // Remove show class first to retrigger animation when moving between squares
-  const wasShowing = tooltip.classList.contains('show');
-  if (wasShowing) {
-    tooltip.classList.remove('show');
-  }
+  // Remove show class first to reset animation state
+  tooltip.classList.remove('show');
 
   tooltip.querySelector('.tooltip-date').textContent = date.toLocaleDateString('en-US', {
     weekday: 'short',
@@ -243,11 +240,14 @@ function showTooltip(element, date, color) {
   tooltip.style.left = left + 'px';
   tooltip.style.top = top + 'px';
 
-  // Force reflow to ensure transition triggers after positioning
-  tooltip.offsetHeight;
-
-  tooltip.classList.add('show');
-  tooltip.setAttribute('aria-hidden', 'false');
+  // Use double requestAnimationFrame for reliable animation triggering on mobile
+  // This ensures the browser has processed the class removal before adding it back
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      tooltip.classList.add('show');
+      tooltip.setAttribute('aria-hidden', 'false');
+    });
+  });
 }
 
 function hideTooltip() {

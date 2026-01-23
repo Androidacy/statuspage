@@ -13,6 +13,8 @@ body {
   min-height: 100dvh; /* Dynamic viewport height for mobile browsers */
   margin: 0;
   padding: 0;
+  display: flex;
+  flex-direction: column;
 }
 
 /* Container - wider for better space usage */
@@ -22,8 +24,7 @@ body {
 
 /* Main container - expand to fill viewport with flexbox */
 main.container {
-  min-height: 100vh;
-  min-height: 100dvh;
+  flex: 1;
   padding-top: 1rem;
   padding-bottom: 1.5rem;
   display: flex;
@@ -190,12 +191,14 @@ main.container #reports {
   opacity: 0;
   pointer-events: none;
   transition: opacity 0.2s ease, transform 0.2s ease;
-  transform: translateY(4px);
+  transform: translate3d(0, 4px, 0);
+  will-change: opacity, transform;
+  backface-visibility: hidden;
 }
 
 .status-tooltip.show {
   opacity: 1;
-  transform: translateY(0);
+  transform: translate3d(0, 0, 0);
 }
 
 .status-tooltip .tooltip-arrow {
@@ -238,6 +241,11 @@ main.container #reports {
 
 .status-tooltip hr {
   border-color: #e9ecef;
+}
+
+/* Footer - stays at bottom, doesn't shrink */
+footer {
+  flex-shrink: 0;
 }
 
 /* Footer - smaller credit */
